@@ -10,6 +10,7 @@
 #include "sbus_radio.h"
 #include "optitrack.h"
 #include "vins_mono.h"
+#include "upboard.h"
 #include "ublox_m8n.h"
 #include "proj_config.h"
 
@@ -366,7 +367,7 @@ void uart6_puts(char *s, int size)
 		uart6_tx_busy = false;
 	}
 
-	static uint8_t uart6_buf[100];
+	static uint8_t uart6_buf[200];
 	memcpy(uart6_buf, s, size);
 
 	//uart6 tx: dma2 channel5 stream6
@@ -533,7 +534,7 @@ void USART6_IRQHandler(void)
 	if(USART_GetITStatus(USART6, USART_IT_RXNE) == SET) {
 		c = USART_ReceiveData(USART6);
 		USART6->SR;
-		vins_mono_isr_handler(c);
+		upboard_isr_handler(c);
 	}
 }
 

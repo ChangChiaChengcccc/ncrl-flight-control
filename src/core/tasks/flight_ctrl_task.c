@@ -35,7 +35,7 @@
 #include "ins_sensor_sync.h"
 #include "led.h"
 #include "attitude_state.h"
-
+#include "upboard.h"
 #define FLIGHT_CTL_PRESCALER_RELOAD 10
 
 extern optitrack_t optitrack;
@@ -165,7 +165,8 @@ void task_flight_ctrl(void *param)
 #elif (SELECT_NAVIGATION_DEVICE1 == NAV_DEV1_USE_OPTITRACK)
 		optitrack_update();
 #endif
-
+		stm32_send_msg_20hz();
+		upboard_update();
 #if (SELECT_NAVIGATION_DEVICE2 == NAV_DEV2_USE_VINS_MONO)
 		vins_mono_camera_trigger_20hz();
 		vins_mono_send_imu_200hz();
@@ -281,4 +282,20 @@ void send_attitude_imu_debug_message(debug_msg_t *payload)
 	pack_debug_debug_message_float(&gyro_lpf[0], payload);
 	pack_debug_debug_message_float(&gyro_lpf[1], payload);
 	pack_debug_debug_message_float(&gyro_lpf[2], payload);
+}
+
+void send_efficiency_debug_message(debug_msg_t *payload)
+{
+	float e1, e2, e3, e4;
+	get_upboard_ukf_e1(&e1);
+	get_upboard_ukf_e2(&e2);
+	get_upboard_ukf_e3(&e3);
+	get_upboard_ukf_e4(&e4);
+
+	pack_debug_debug_message_header(payload, MESSAGE_ID_EFFICIENCY);
+	pack_debug_debug_message_float(&e1, payload);
+	pack_debug_debug_message_float(&e2, payload);
+	pack_debug_debug_message_float(&e3, payload);
+	pack_debug_debug_message_float(&e4, payload);
+
 }

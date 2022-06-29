@@ -35,7 +35,7 @@
 #include "ms5611.h"
 #include "ist8310.h"
 #include "ins_sensor_sync.h"
-
+#include "upboard.h"
 perf_t perf_list[] = {
 	DEF_PERF(PERF_AHRS_INS, "ahrs and ins")
 	DEF_PERF(PERF_CONTROLLER, "controller")
@@ -60,7 +60,8 @@ int main(void)
 	uart1_init(115200);
 	uart3_init(115200); //telem
 	uart4_init(100000); //s-bus
-
+	uart6_init(230400);
+	upboard_init(UAV_DEFAULT_ID);
 #if (SELECT_NAVIGATION_DEVICE1 == NAV_DEV1_USE_GPS)
 	uart7_init(38400); //gps
 	ublox_m8n_init();
@@ -68,7 +69,7 @@ int main(void)
 	uart7_init(115200);
 	optitrack_init(UAV_DEFAULT_ID); //setup tracker id for this MAV
 #endif
-
+	
 #if (SELECT_NAVIGATION_DEVICE2 == NAV_DEV2_USE_VINS_MONO)
 	uart6_init(115200);
 	vins_mono_init(UAV_DEFAULT_ID); //TODO: tracker id is not needed

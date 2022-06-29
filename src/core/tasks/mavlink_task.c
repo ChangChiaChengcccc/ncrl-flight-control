@@ -90,6 +90,9 @@ void mavlink_tx_task(void *param)
 
 		/* send trajectory debug message if autopilot mode is set to
 		 * trajectory following mode */
+		if((autopilot_get_mode() == AUTOPILOT_HOVERING_MODE) && (prescaler_div_5 == 1)) {
+			send_mavlink_trajectory_position_debug();
+		}
 		if(autopilot_get_mode() == AUTOPILOT_TRAJECTORY_FOLLOWING_MODE) {
 			send_mavlink_trajectory_position_debug();
 			send_mavlink_trajectory_velocity_debug();

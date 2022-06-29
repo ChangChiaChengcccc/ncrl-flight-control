@@ -28,6 +28,13 @@ void assign_vector_3x1_enu_to_ned(float *ned, float *enu)
 	ned[2] = -enu[2];
 }
 
+void assign_vector_3x1_ned_to_enu(float *enu, float *ned)
+{
+	enu[0] = ned[1];
+	enu[1] = ned[0];
+	enu[2] = -ned[2];
+}
+
 void autopilot_init(void)
 {
 	autopilot.mode = AUTOPILOT_MANUAL_FLIGHT_MODE;

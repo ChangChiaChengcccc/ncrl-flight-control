@@ -25,12 +25,25 @@
 #include "attitude_state.h"
 #include "waypoint_following.h"
 #include "fence.h"
+#include "imu.h"
 
 #define dt 0.0025 //[s]
 #define MOTOR_TO_CG_LENGTH 16.25f //[cm]
 #define MOTOR_TO_CG_LENGTH_M (MOTOR_TO_CG_LENGTH * 0.01) //[m]
 #define COEFFICIENT_YAW 1.0f
 
+// init pass to upboard ukf values 
+float ukf_pos_enu[3] = {0}; 
+float ukf_vel_enu[3] = {0};
+float ukf_acc_enu[3] = {0};
+float ukf_W[3] = {0};
+float ukf_f1_cmd = 0;
+float ukf_f2_cmd = 0;
+float ukf_f3_cmd = 0;
+float ukf_f4_cmd = 0;
+float ukf_RotMat_array[9] = {0};
+
+// MAT_ALLOC
 MAT_ALLOC(J, 3, 3);
 MAT_ALLOC(R, 3, 3);
 MAT_ALLOC(Rd, 3, 3);
@@ -63,6 +76,8 @@ MAT_ALLOC(kxex_kvev_mge3_mxd_dot_dot, 3, 1);
 MAT_ALLOC(b1d, 3, 1);
 MAT_ALLOC(b2d, 3, 1);
 MAT_ALLOC(b3d, 3, 1);
+MAT_ALLOC(acc_ned_body_frame_mat, 3, 1);
+MAT_ALLOC(acc_ned_world_frame_mat, 3, 1);
 
 float pos_error[3];
 float vel_error[3];
@@ -129,6 +144,8 @@ void geometry_ctrl_init(void)
 	MAT_INIT(b1d, 3, 1);
 	MAT_INIT(b2d, 3, 1);
 	MAT_INIT(b3d, 3, 1);
+	MAT_INIT(acc_ned_body_frame_mat, 3, 1);
+	MAT_INIT(acc_ned_world_frame_mat, 3, 1);
 
 	/* modify local variables when user change them via ground station */
 	set_sys_param_update_var_addr(MR_GEO_GAIN_ROLL_P, &krx);
@@ -465,6 +482,45 @@ void geometry_tracking_ctrl(euler_t *rc, float *attitude_q, float *gyro,
 	output_moments[0] = -krx*mat_data(eR)[0] -kwx*mat_data(eW)[0] + mat_data(inertia_effect)[0];
 	output_moments[1] = -kry*mat_data(eR)[1] -kwy*mat_data(eW)[1] + mat_data(inertia_effect)[1];
 	output_moments[2] = -krz*mat_data(eR)[2] -kwz*mat_data(eW)[2] + mat_data(inertia_effect)[2];
+
+	/*get the upboard ukf data*/
+	float curr_pos_enu[3];
+	assign_vector_3x1_ned_to_enu(curr_pos_enu, curr_pos_ned);
+	ukf_pos_enu[0] = curr_pos_enu[0];
+	ukf_pos_enu[1] = curr_pos_enu[1];
+	ukf_pos_enu[2] = curr_pos_enu[2];
+
+	float curr_vel_enu[3];
+	assign_vector_3x1_ned_to_enu(curr_vel_enu, curr_vel_ned);
+	ukf_vel_enu[0] = curr_vel_enu[0];
+	ukf_vel_enu[1] = curr_vel_enu[1];
+	ukf_vel_enu[2] = curr_vel_enu[2];
+
+	ukf_W[0] = gyro[0];
+	ukf_W[1] = gyro[1];
+	ukf_W[2] = gyro[2];
+
+	ukf_RotMat_array[0] = mat_data(R)[0];
+	ukf_RotMat_array[1] = mat_data(R)[1];
+	ukf_RotMat_array[2] = mat_data(R)[2];
+	ukf_RotMat_array[3] = mat_data(R)[3];
+	ukf_RotMat_array[4] = mat_data(R)[4];
+	ukf_RotMat_array[5] = mat_data(R)[5];
+	ukf_RotMat_array[6] = mat_data(R)[6];
+	ukf_RotMat_array[7] = mat_data(R)[7];
+	ukf_RotMat_array[8] = mat_data(R)[8];
+	//get acceleration in world frame
+	float acc_ned_body_frame[3];
+	get_accel_lpf(acc_ned_body_frame);
+	mat_data(acc_ned_body_frame_mat)[0] = acc_ned_body_frame[0];
+	mat_data(acc_ned_body_frame_mat)[1] = acc_ned_body_frame[1];
+	mat_data(acc_ned_body_frame_mat)[2] = acc_ned_body_frame[2];
+	MAT_MULT( &R, &acc_ned_body_frame_mat, &acc_ned_world_frame_mat);
+	float acc_ned_world_frame[3];
+	acc_ned_world_frame[0] = mat_data(acc_ned_world_frame_mat)[0];
+	acc_ned_world_frame[1] = mat_data(acc_ned_world_frame_mat)[1];
+	acc_ned_world_frame[2] = mat_data(acc_ned_world_frame_mat)[2];
+	assign_vector_3x1_ned_to_enu(ukf_acc_enu, acc_ned_world_frame);
 }
 
 #define l_div_4 (0.25f * (1.0f / MOTOR_TO_CG_LENGTH_M))
@@ -487,6 +543,36 @@ void mr_geometry_ctrl_thrust_allocation(float *moment, float total_force)
 	set_motor_value(MOTOR2, convert_motor_thrust_to_cmd(motor_force[1]));
 	set_motor_value(MOTOR3, convert_motor_thrust_to_cmd(motor_force[2]));
 	set_motor_value(MOTOR4, convert_motor_thrust_to_cmd(motor_force[3]));
+}
+
+void fake_mr_geometry_ctrl_thrust_allocation(float *moment, float total_force)
+{
+	/* quadrotor thrust allocation */
+	float distributed_force = total_force *= 0.25; //split force to 4 motors
+	float motor_force[4];
+	motor_force[0] = -l_div_4 * moment[0] + l_div_4 * moment[1] +
+	                 -b_div_4 * moment[2] + distributed_force;
+	motor_force[1] = +l_div_4 * moment[0] + l_div_4 * moment[1] +
+	                 +b_div_4 * moment[2] + distributed_force;
+	motor_force[2] = +l_div_4 * moment[0] - l_div_4 * moment[1] +
+	                 -b_div_4 * moment[2] + distributed_force;
+	motor_force[3] = -l_div_4 * moment[0] - l_div_4 * moment[1] +
+	                 +b_div_4 * moment[2] + distributed_force;
+
+	ukf_f1_cmd = motor_force[0];
+	ukf_f2_cmd = motor_force[1];
+	ukf_f3_cmd = motor_force[2];
+	ukf_f4_cmd = motor_force[3];
+
+	float e1 = 1;//0.7;
+	float e2 = 0.8;//0.8;
+	float e3 = 0.8;//0.6;
+	float e4 = 1;//0.9;
+
+	set_motor_value(MOTOR1, convert_motor_thrust_to_cmd(motor_force[0]*e1));
+	set_motor_value(MOTOR2, convert_motor_thrust_to_cmd(motor_force[1]*e2));
+	set_motor_value(MOTOR3, convert_motor_thrust_to_cmd(motor_force[2]*e3));
+	set_motor_value(MOTOR4, convert_motor_thrust_to_cmd(motor_force[3]*e4));
 }
 
 void rc_mode_handler_geometry_ctrl(radio_t *rc)
@@ -640,7 +726,13 @@ void multirotor_geometry_control(radio_t *rc, float *desired_heading)
 	lock_motor |= check_motor_lock_condition(rc->safety == true);
 
 	if(lock_motor == false) {
-		mr_geometry_ctrl_thrust_allocation(control_moments, control_force);
+		if(rc->auto_flight == true && height_availabe && heading_available) {
+			fake_mr_geometry_ctrl_thrust_allocation(control_moments, control_force);
+
+		}
+		else{
+			mr_geometry_ctrl_thrust_allocation(control_moments, control_force);
+		}
 	} else {
 		motor_halt();
 	}

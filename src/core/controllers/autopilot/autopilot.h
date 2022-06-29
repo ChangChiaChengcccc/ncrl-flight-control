@@ -127,6 +127,7 @@ typedef struct {
 
 bool check_motor_lock_condition(bool condition);
 void assign_vector_3x1_enu_to_ned(float *ned, float *enu);
+void assign_vector_3x1_ned_to_enu(float *enu, float *ned);
 
 void autopilot_init(void);
 

@@ -11,5 +11,6 @@ void send_imu_debug_message(debug_msg_t *payload);
 void send_attitude_euler_debug_message(debug_msg_t *payload);
 void send_attitude_quaternion_debug_message(debug_msg_t *payload);
 void send_attitude_imu_debug_message(debug_msg_t *payload);
+void send_efficiency_debug_message(debug_msg_t *payload);
 
 #endif
