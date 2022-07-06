@@ -47,6 +47,7 @@ void send_stm32_msg(void)
 	float ukf_f4_cmd = 0;
 	float ukf_RotMat_array[9] = {0};
 	*/
+	
 	/*----------------------------------------------------------------------------------
 	 *| start byte | checksum | pos[x,y,z] | W[x,y,z] | f[1~4]_cmd | R[0~8] | end byte |
 	 *----------------------------------------------------------------------------------*/
@@ -60,7 +61,6 @@ void send_stm32_msg(void)
 	msg_pos += sizeof(uint8_t);
 	msg_buf[msg_pos] = 0;	//checksum
 	msg_pos += sizeof(uint8_t);
-	//float fuck[3] = {1,2,3};
 	/* pack payloads */
 	memcpy(msg_buf + msg_pos, &ukf_pos_enu[0], sizeof(float));
 	msg_pos += sizeof(float);
@@ -112,7 +112,6 @@ void send_stm32_msg(void)
 	msg_pos += sizeof(float);
 	memcpy(msg_buf + msg_pos, &ukf_acc_enu[2], sizeof(float));
 	msg_pos += sizeof(float);
-
 
 	msg_buf[msg_pos] = '+'; //end byte
 	msg_pos += sizeof(uint8_t);

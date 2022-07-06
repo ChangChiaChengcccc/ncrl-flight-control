@@ -564,10 +564,10 @@ void fake_mr_geometry_ctrl_thrust_allocation(float *moment, float total_force)
 	ukf_f3_cmd = motor_force[2];
 	ukf_f4_cmd = motor_force[3];
 
-	float e1 = 1;//0.7;
-	float e2 = 0.8;//0.8;
-	float e3 = 0.8;//0.6;
-	float e4 = 1;//0.9;
+	float e1 = 1.0;//0.7;
+	float e2 = 1.0;//0.8;
+	float e3 = 1.0;//0.6;
+	float e4 = 1.0;//0.9;
 
 	set_motor_value(MOTOR1, convert_motor_thrust_to_cmd(motor_force[0]*e1));
 	set_motor_value(MOTOR2, convert_motor_thrust_to_cmd(motor_force[1]*e2));
