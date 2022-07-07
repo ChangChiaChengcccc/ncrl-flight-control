@@ -26,6 +26,7 @@
 #include "waypoint_following.h"
 #include "fence.h"
 #include "imu.h"
+#include "upboard.h"
 
 #define dt 0.0025 //[s]
 #define MOTOR_TO_CG_LENGTH 16.25f //[cm]
@@ -559,20 +560,51 @@ void fake_mr_geometry_ctrl_thrust_allocation(float *moment, float total_force)
 	motor_force[3] = -l_div_4 * moment[0] - l_div_4 * moment[1] +
 	                 +b_div_4 * moment[2] + distributed_force;
 
-	ukf_f1_cmd = motor_force[0];
-	ukf_f2_cmd = motor_force[1];
-	ukf_f3_cmd = motor_force[2];
-	ukf_f4_cmd = motor_force[3];
+	// get ukf efficiency
+	float ukf_e1 = 1;
+	float ukf_e2 = 1;
+	float ukf_e3 = 1;
+	float ukf_e4 = 1;
+	get_upboard_ukf_e1(&ukf_e1);
+	get_upboard_ukf_e2(&ukf_e2);
+	get_upboard_ukf_e3(&ukf_e3);
+	get_upboard_ukf_e4(&ukf_e4); 
 
+	float eff_array[4]= {ukf_e1,ukf_e2,ukf_e3,ukf_e4};
+	
+
+	for(int i=0; i<4; i++){
+		if(eff_array[i]>1){
+			eff_array[i]=1;
+		}
+		if(eff_array[i]<0.6){
+			eff_array[i]=0.6;
+		}
+	}
+
+	// feedback efficiency from ukf 
+	float feedback_motor_force[4];
+	feedback_motor_force[0] = motor_force[0] ; // / eff_array[0];
+	feedback_motor_force[1] = motor_force[1] / eff_array[1]*0.9;
+	feedback_motor_force[2] = motor_force[2] / eff_array[2]*0.9;
+	feedback_motor_force[3] = motor_force[3] ; // / eff_array[3];
+
+	//write extern variable
+	ukf_f1_cmd = feedback_motor_force[0];
+	ukf_f2_cmd = feedback_motor_force[1];
+	ukf_f3_cmd = feedback_motor_force[2];
+	ukf_f4_cmd = feedback_motor_force[3];
+
+	// real efficiency 
 	float e1 = 1.0;//0.7;
-	float e2 = 1.0;//0.8;
-	float e3 = 1.0;//0.6;
+	float e2 = 0.7;//0.8;
+	float e3 = 0.7;//0.6;
 	float e4 = 1.0;//0.9;
 
-	set_motor_value(MOTOR1, convert_motor_thrust_to_cmd(motor_force[0]*e1));
-	set_motor_value(MOTOR2, convert_motor_thrust_to_cmd(motor_force[1]*e2));
-	set_motor_value(MOTOR3, convert_motor_thrust_to_cmd(motor_force[2]*e3));
-	set_motor_value(MOTOR4, convert_motor_thrust_to_cmd(motor_force[3]*e4));
+	set_motor_value(MOTOR1, convert_motor_thrust_to_cmd(feedback_motor_force[0]*e1));
+	set_motor_value(MOTOR2, convert_motor_thrust_to_cmd(feedback_motor_force[1]*e2));
+	set_motor_value(MOTOR3, convert_motor_thrust_to_cmd(feedback_motor_force[2]*e3));
+	set_motor_value(MOTOR4, convert_motor_thrust_to_cmd(feedback_motor_force[3]*e4));
 }
 
 void rc_mode_handler_geometry_ctrl(radio_t *rc)
